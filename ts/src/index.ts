@@ -56,22 +56,23 @@ let results:[string, number][] = [ ["fast tree", 0 ], ["raxml" , 0], ["iqTree",
 
 // Loop over all input alignments
 forEach( inputs, (i) => map(myManagement, i, myTasks) )
-    .join( (allRes) => {
+    .join( (allRes) => { // At completion
    
-   
-    // For each gene aln file we get a collection of best tree per software
-    // Preparing the inputs for goTree assessment stage
+    
+    // Prepare inputs for following goTree assessment stage
+    // For each gene aln file we get a collection of best tree per software  
         let varTree:any[] = allRes.map((geneRes) => {
             let refTree = geneRes[1]; // We consider raxml tree as gold
-        // just changin keys to be passed as input
+        // just changing keys to be passed as input
             return geneRes.map((oneTaskRes) => { return { 'treeOne' : oneTaskRes['out'], 'treeTwo' : refTree['out'] }; });
         });
-
-    // Foreach gene-based collection of predicted tree s  
+    
+    // Now that goTree inputs are all set
+    // Foreach gene-based collection of predicted trees  
     // map the goTree task onto the collection
     forEach( varTree, (geneCollectionTrees)=> map(myManagement, geneCollectionTrees, gotree.Task) )
-    // reduce the foreach results
-    // that is loop over all each map results 
+    // Reduce the foreach results
+    // By looping over each map results 
     // Here each results is a list of 3 goTree calls
         .reduce( (acc, geneAssessment, index)=>{
             let c_acc = acc ? acc : results;
@@ -83,7 +84,6 @@ forEach( inputs, (i) => map(myManagement, i, myTasks) )
             return c_acc;
         }).then((results) => { 
             logger.info(`Methods success counts on ${aliFiles.length} experiments:\n${utils.format(results)}`);
-
     });
     })
 });
