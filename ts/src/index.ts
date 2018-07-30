@@ -8,7 +8,7 @@ import {map, forEach} from 'taskfunctional';
 import fastTree = require('fast-tree-task');
 import raxml = require('raxml-task');
 //import iqtree = require('iq-treetask/build/index.js');
-import iqtree = require('iq-treetask');
+import iqtree = require('@glaunay/iqtree-task');
 import gotree = require('gotree-task');
 import  glob = require("glob");
  

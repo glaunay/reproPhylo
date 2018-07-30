@@ -21,11 +21,11 @@
   },
   "homepage": "https://github.com/glaunay/reproPhylo#readme",
   "dependencies": {
+    "@glaunay/iqtree-task": "^1.0.3",
     "commander": "^2.16.0",
     "fast-tree-task": "^1.0.2",
     "glob": "^7.1.2",
     "gotree-task": "^1.0.0",
-    "iq-treetask": "^1.0.2",
     "ms-jobmanager": "^2.1.0",
     "raxml-task": "^1.0.1",
     "taskfunctional": "^1.1.3",
