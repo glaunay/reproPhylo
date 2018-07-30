@@ -1,29 +1,25 @@
 import utils = require('util');
 import program = require('commander');
+import  glob = require("glob");
 
 import {logger, setLogLevel} from './logger';
+
 import jobManager = require('ms-jobmanager');
 import {map, forEach} from 'taskfunctional';
 
 import fastTree = require('fast-tree-task');
-import raxml = require('raxml-task');
-//import iqtree = require('iq-treetask/build/index.js');
+import raxml = require('@glaunay/raxml-task');
 import iqtree = require('@glaunay/iqtree-task');
 import gotree = require('gotree-task');
-import  glob = require("glob");
  
-// options is optional
-
-
-/*
-    Read-in an input file path
-*/
-
-
+// Execute three phylogenetic tree reconstruction softwares on a pool of genes alignments
+// Using one of the software results as the gold-standard
+// Compute foreach method their number of matches with the gold. 
 
 program
   .version('0.1.0')
   .option('-i, --input [dirPath]', 'alignments folder')
+  .option('-o, --ouput [filePath]', 'results fileName', "reproPhylo.out")
   .option('-v, --verbosity [logLevel]', 'Set log level', setLogLevel, 'info')
 .parse(process.argv)
 
@@ -33,11 +29,13 @@ if (!program.input)
 let patt:string = program.input + "/*.aln";
 let aliFiles:string[] = glob.sync(patt);
 
-logger.info(`${patt}--> ${aliFiles}`);
+logger.info(`Input files(${patt})\n${aliFiles}`);
+
+
+
 function display(d) {
     logger.info(`Chain joined OUTPUT:\n${ utils.format(d) }`);
 }
-
 
 jobManager.start({ "TCPip": "localhost", "port": "2323" })
 .on("ready", () => {
@@ -46,29 +44,46 @@ jobManager.start({ "TCPip": "localhost", "port": "2323" })
         'jobProfile' : 'dummy'
     }
 
+    // Setting task input(s)    
+// Assign each alignment file to a canonical "inputF" key
     let inputs = aliFiles.map((fName) => { return  {'inputF' : fName}; });
-    logger.info(`${utils.format(inputs)}`);
+    logger.debug(`${utils.format(inputs)}`);
+// Create the list of tasks, raxml will be gold
+    let myTasks = [fastTree.Task, raxml.Task, iqtree.Task];
+// Create the corresponding tuples accumulator for results
+let results:[string, number][] = [ ["fast tree", 0 ], ["raxml" , 0], ["iqTree", 0] ]; 
+   
 
-    let myTasks = [fastTree.Task, raxml.Task, iqtree.Task]; // <--- raxml will be gold
-
-
+// Loop over all input alignments
 forEach( inputs, (i) => map(myManagement, i, myTasks) )
     .join( (allRes) => {
-    // THIS BLOCK SHOULD BE A REDUCE W/ a join/then interface to avoid callback indentation/inflation -- MAYBE ....
-
+   
+   
     // For each gene aln file we get a collection of best tree per software
-   let varTree:any[] = allRes.map((geneRes) => {
-       let refTree = geneRes[1]; // We consider raxml tree as gold
+    // Preparing the inputs for goTree assessment stage
+        let varTree:any[] = allRes.map((geneRes) => {
+            let refTree = geneRes[1]; // We consider raxml tree as gold
         // just changin keys to be passed as input
-        return geneRes.map((oneTaskRes) => { return { 'treeOne' : oneTaskRes['out'], 'treeTwo' : refTree['out'] }; });
-    })
+            return geneRes.map((oneTaskRes) => { return { 'treeOne' : oneTaskRes['out'], 'treeTwo' : refTree['out'] }; });
+        });
 
-    //logger.info(`${utils.format(varTree)}`);
+    // Foreach gene-based collection of predicted tree s  
+    // map the goTree task onto the collection
+    forEach( varTree, (geneCollectionTrees)=> map(myManagement, geneCollectionTrees, gotree.Task) )
+    // reduce the foreach results
+    // that is loop over all each map results 
+    // Here each results is a list of 3 goTree calls
+        .reduce( (acc, geneAssessment, index)=>{
+            let c_acc = acc ? acc : results;
+            geneAssessment.forEach((methodScore, methodIndex)=> {
+                logger.debug(`goTree output value:${utils.format(methodScore)}`);
+                if (methodScore === 'tree identical 0 true ')
+                    c_acc[methodIndex][1] += 1;
+            });
+            return c_acc;
+        }).then((results) => { 
+            logger.info(`Methods success counts on ${aliFiles.length} experiments:\n${utils.format(results)}`);
 
-    forEach(varTree, (geneCollectionTrees)=> map(myManagement, geneCollectionTrees, gotree.Task))
-        .join((d)=>{
-            logger.info(`${utils.format(d)}`);
-
-        }); 
+    });
     })
 });
